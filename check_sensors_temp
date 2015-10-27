@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sensors
+import re
+from pynag.Plugins import PluginHelper, ok, warning, critical, unknown
+
+def main():
+    helper = PluginHelper()
+    
+    helper.parser.add_option("-w", default='70', dest='warnval')
+    helper.parser.add_option("-c", default='90', dest='critval')
+    
+    helper.parse_arguments()
+    
+    warnval = float(helper.options.warnval)
+    critval = float(helper.options.critval)
+    
+    if (critval < warnval):
+        helper.exit(summary='Critical value must be higher than warning value',
+                    exit_code=unknown,
+                    perfdata='')
+    
+    try:
+        temp = get_temp()
+    except Exception, e:
+        helper.exit(summary='Could not read sensor values',
+                    long_output=str(e),
+                    exit_code=unknown,
+                    perfdata='')
+    
+    strtemp = '%.2f' % temp
+    helper.add_summary("CPU temp: %s" % strtemp)
+    helper.add_metric(label='CPU temp', value=strtemp)
+    
+    if temp < warnval:
+        helper.status(ok)
+    if warnval < temp < critval:
+        helper.status(warning)
+    if temp > critval:
+        helper.status(critical)
+    
+    helper.exit()
+
+def get_temp():
+    pattern = re.compile("cputin", re.I)
+    sensors.init()
+    
+    for chip in sensors.iter_detected_chips():
+        for feature in chip:
+            if pattern.match(feature.label):
+                temp = feature.get_value()
+                sensors.cleanup()
+                return temp
+
+    sensors.cleanup()
+
+if __name__ == '__main__':
+    main()
